@@ -200,19 +200,6 @@ const App = () => {
         {inputNames.length && inputNames.map((name, index) => (
           <div className='formGroup' key={index}>
             <label className='formLabel'> {name.name} </label>
-            {/* <select
-              className="form-control"
-              value={name.value}
-              onChange={(event) => handleInputValue(index, event)} // Pass index and event to the function
-            >
-              <option value="first_name">First Name</option>
-              <option value="last_name">Last Name</option>
-              <option value="full_name">Full Name</option>
-              <option value="email">Email</option>
-              <option value="address">Address</option>
-              <option value="phone_number">Phone</option>
-              <option value="bio">Bio</option>
-            </select> */}
             <Select
               className="form-control"
               value={name.value}
