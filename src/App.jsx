@@ -23,6 +23,10 @@ const customStyles = {
     backgroundColor: 'black', // Change the background color
     color: 'white', // Change the background color
   }),
+  singleValue: (provided) => ({
+    ...provided,
+    color: 'white', // Change the color of the selected option text to red
+  }),
   option: (provided, state) => ({
     ...provided,
     backgroundColor: '#333', // Change the background color of options
@@ -33,7 +37,7 @@ const customStyles = {
   }),
   placeholder: (provided) => ({
     ...provided,
-    color: 'white', // Change the placeholder color
+    color: '#9d9797', // Change the placeholder color
   }),
   input: (provided) => ({
     ...provided,
@@ -48,18 +52,21 @@ const customStyles = {
 };
 const App = () => {
   const [inputNames, setInputNames] = useState([]);
-
+  const [currentTabId, setCurrentTabId] = useState(null);
   // App.jsx
+
 
   useEffect(() => {
     const updateInputNames = () => {
       chrome.tabs.onActivated.addListener(async (activeInfo) => {
+        setCurrentTabId(activeInfo.tabId); // Update current tab ID
         const tab = await chrome.tabs.get(activeInfo.tabId);
         if (tab) {
           chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => {
               const inputNames = Array.from(document.querySelectorAll('input, textarea'))
+                .filter(input => !input.type || !input.type.toLowerCase().includes('file'))
                 .map(input => input.getAttribute('name'))
                 .filter(Boolean);
 
@@ -79,8 +86,19 @@ const App = () => {
     updateInputNames();
   }, []);
 
+  useEffect(() => {
+    if (currentTabId) {
+      const sessionKey = `session_${currentTabId}`;
+      chrome.storage.local.get([sessionKey], (result) => {
+        const storedSessions = result[sessionKey] || {};
+        setInputNames(storedSessions);
+      });
+    }
+  }, [currentTabId]);
+
 
   const onClick = async () => {
+    await fillFakeValue();
     let [tab] = await chrome.tabs.query({ active: true });
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -160,37 +178,59 @@ const App = () => {
   }
 
   const handleInputValue = (selectedOption, index) => {
-    console.log(selectedOption);
+
     const updatedInputNames = [...inputNames]; // Create a copy of the inputNames array
     updatedInputNames[index].value = selectedOption; // Update the value in the corresponding object
-    if (selectedOption.value === 'full_name' || selectedOption.value === 'first_name' || selectedOption.value === 'last_name') {
-      const name = faker.person.fullName();
-      if (selectedOption.value === 'full_name')
-        updatedInputNames[index].fakeValue = name;
-      else if (selectedOption.value === 'first_name')
-        updatedInputNames[index].fakeValue = faker.person.firstName();
-      else
-        updatedInputNames[index].fakeValue = faker.person.lastName();
-    }
 
-    else if (selectedOption.value === 'email') {
-      updatedInputNames[index].fakeValue = faker.internet.email();
-    }
-    else if (selectedOption.value === 'phone_number') {
-      updatedInputNames[index].fakeValue = faker.phone.number();
-    }
-    else if (selectedOption.value === 'address') {
-      updatedInputNames[index].fakeValue = faker.location.streetAddress({ useFullAddress: true });
-    }
-    else if (selectedOption.value === 'bio') {
-      updatedInputNames[index].fakeValue = faker.person.bio();
-    }
-    console.log(updatedInputNames);
     setInputNames(updatedInputNames); // Update the state with the modified array
     chrome.storage.local.set({ inputNames: updatedInputNames });
+
+    if (currentTabId) {
+      const sessionKey = `session_${currentTabId}`;
+      const updatedSessions = { ...updatedInputNames };
+      updatedSessions[index] = selectedOption;
+      chrome.storage.local.set({ [sessionKey]: updatedSessions });
+    }
   };
 
-  // if (!inputNames.length) return
+  const fillFakeValue = async () => {
+    const updatedInputNames = [...inputNames]; // Create a copy of the inputNames array
+    // let selectedOption = updatedInputNames[index];
+    updatedInputNames.forEach((selectedOption, index) => {
+      if (selectedOption.value.value === 'full_name' || selectedOption.value.value === 'first_name' || selectedOption.value.value === 'last_name') {
+        const name = faker.person.fullName();
+        if (selectedOption.value.value === 'full_name')
+          updatedInputNames[index].fakeValue = name;
+        else if (selectedOption.value.value === 'first_name')
+          updatedInputNames[index].fakeValue = faker.person.firstName();
+        else
+          updatedInputNames[index].fakeValue = faker.person.lastName();
+      }
+
+      else if (selectedOption.value.value === 'email') {
+        updatedInputNames[index].fakeValue = faker.internet.email();
+      }
+      else if (selectedOption.value.value === 'phone_number') {
+        updatedInputNames[index].fakeValue = faker.phone.number();
+      }
+      else if (selectedOption.value.value === 'address') {
+        updatedInputNames[index].fakeValue = faker.location.streetAddress({ useFullAddress: true });
+      }
+      else if (selectedOption.value.value === 'bio') {
+        updatedInputNames[index].fakeValue = faker.person.bio();
+      }
+    });
+    setInputNames(updatedInputNames);
+    chrome.storage.local.set({ inputNames: updatedInputNames });
+
+    if (currentTabId) {
+      const sessionKey = `session_${currentTabId}`;
+      const updatedSessions = { ...updatedInputNames };
+      updatedSessions[index] = selectedOption;
+      chrome.storage.local.set({ [sessionKey]: updatedSessions });
+    }
+  }
+
   return (
     <>
       <div>
@@ -216,13 +256,7 @@ const App = () => {
         <button onClick={onClick}>
           Fill Form
         </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
     </>
   )
 }
